@@ -1,10 +1,10 @@
-# Sci-Hub MCP Server
+# getPaper
 
 [![smithery badge](https://smithery.ai/badge/@JackKuo666/sci-hub-mcp-server)](https://smithery.ai/server/@JackKuo666/sci-hub-mcp-server)
 
 🔍 Enable AI assistants to search, access, and analyze academic papers through Sci-Hub using a simple MCP interface.
 
-The Sci-Hub MCP Server provides a bridge between AI assistants and Sci-Hub's repository of academic literature through the Model Context Protocol (MCP). It allows AI models to search for scientific articles by DOI, title, or keywords, access their metadata, and download PDFs in a programmatic way.
+getPaper provides a bridge between AI assistants and Sci-Hub's repository of academic literature through the Model Context Protocol (MCP). It allows AI models to search for scientific articles by DOI, title, or keywords, access their metadata, and download PDFs in a programmatic way.
 
 ## ✨ Core Features
 

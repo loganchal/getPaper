@@ -8,7 +8,7 @@ from sci_hub_search import search_paper_by_doi, search_paper_by_title, search_pa
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Initialize FastMCP server
-mcp = FastMCP("scihub")
+mcp = FastMCP("getPaper")
 
 @mcp.tool()
 async def search_scihub_by_doi(doi: str) -> Dict[str, Any]:
@@ -156,6 +156,6 @@ async def get_paper_metadata(doi: str) -> Dict[str, Any]:
         return {"error": f"An error occurred while getting metadata: {str(e)}"}
 
 if __name__ == "__main__":
-    logging.info("Starting Sci-Hub MCP Server")
+    logging.info("Starting getPaper MCP Server")
     # Initialize and run the server
     mcp.run(transport='stdio')
