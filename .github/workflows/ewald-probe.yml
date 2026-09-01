@@ -1,0 +1,36 @@
+name: Ewald corpus probe
+
+on:
+  push:
+    branches: [ai-ewald-scan-20260901]
+    paths:
+      - '.github/workflows/ewald-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and inspect one dimension-8 shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://polymake.org/polytopes/paffenholz/www/fano-v8d-0.tgz'
+          curl -L --fail --retry 4 --retry-delay 2 "$url" -o /tmp/fano-v8d-0.tgz
+          echo 'ARCHIVE'
+          ls -lh /tmp/fano-v8d-0.tgz
+          sha256sum /tmp/fano-v8d-0.tgz
+          echo 'MEMBERS_HEAD'
+          tar tzf /tmp/fano-v8d-0.tgz | sed -n '1,80p'
+          mkdir -p /tmp/fano
+          tar xzf /tmp/fano-v8d-0.tgz -C /tmp/fano
+          echo 'FILES'
+          find /tmp/fano -type f | wc -l
+          first="$(find /tmp/fano -type f | sort | head -n 1)"
+          echo "FIRST_FILE=$first"
+          echo 'FIRST_FILE_HEAD'
+          sed -n '1,240p' "$first"
