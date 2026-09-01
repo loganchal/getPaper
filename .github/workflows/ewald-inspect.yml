@@ -22,13 +22,25 @@ jobs:
             -o smooth_fano_8d.gz \
             http://polymake.org/polytopes/paffenholz/data/smooth-fano/d8/smooth_fano_8d.gz
           ls -lh smooth_fano_8d.gz
-      - name: Benchmark first 10000 records
-        run: gzip -dc smooth_fano_8d.gz | ./ewald_scan 10000 20
-      - name: Show exact summary
-        run: cat ewald_scan_summary.json
+          sha256sum smooth_fano_8d.gz | tee classification.sha256
+      - name: Scan all records exactly
+        run: |
+          set -o pipefail
+          gzip -dc smooth_fano_8d.gz | ./ewald_scan -1 20 2> >(tee ewald_scan.log >&2)
+      - name: Validate classification count and show summary
+        run: |
+          python3 - <<'PY'
+          import json
+          with open('ewald_scan_summary.json') as f:
+              s = json.load(f)
+          assert s['total'] == 749892, s
+          print(json.dumps(s, indent=2))
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ewald-scan-benchmark
+          name: ewald-scan-dimension-8-full
           path: |
+            classification.sha256
             ewald_scan_summary.json
+            ewald_scan.log
             ewald_candidates.txt
