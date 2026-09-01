@@ -1,0 +1,18 @@
+name: Ewald data probe
+
+on:
+  push:
+    branches: [ewald-search-20260901]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe public classification stream
+        run: python3 ewald_inspect.py
