@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Download and inspect one dimension-8 shard
+      - name: Inspect exact polymake file format
         shell: bash
         run: |
           set -euo pipefail
@@ -24,14 +24,11 @@ jobs:
           echo 'ARCHIVE'
           ls -lh /tmp/fano-v8d-0.tgz
           sha256sum /tmp/fano-v8d-0.tgz
-          echo 'MEMBERS_HEAD'
-          tar tzf /tmp/fano-v8d-0.tgz | sed -n '1,80p'
-          mkdir -p /tmp/fano
-          tar xzf /tmp/fano-v8d-0.tgz -C /tmp/fano
           echo 'FILES'
-          find /tmp/fano -type f | wc -l
-          find /tmp/fano -type f -printf '%s %p\n' | sort -n | sed -n '1,10p;$p'
-          first="$(find /tmp/fano -type f | sort | head -n 1)"
-          echo "FIRST_FILE=$first"
-          echo 'FIRST_FILE_HEAD'
-          sed -n '1,320p' "$first"
+          tar tzf /tmp/fano-v8d-0.tgz | wc -l
+          echo 'FILE_000000'
+          tar xOzf /tmp/fano-v8d-0.tgz fano.pnew.8D.000000.poly
+          echo 'FILE_000001'
+          tar xOzf /tmp/fano-v8d-0.tgz fano.pnew.8D.000001.poly
+          echo 'FILE_005983_HEAD'
+          tar xOzf /tmp/fano-v8d-0.tgz fano.pnew.8D.005983.poly | sed -n '1,260p'
