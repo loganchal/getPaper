@@ -1,4 +1,4 @@
-name: Ewald dimension-9 classification scan
+name: Extract dimension-9 minimum-E record
 
 on:
   push:
@@ -9,119 +9,74 @@ permissions:
   contents: read
 
 jobs:
-  scan:
-    strategy:
-      fail-fast: false
-      max-parallel: 17
-      matrix:
-        facets: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26]
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
-      - name: Specialize exact scanner to dimension 9
-        run: |
-          python3 - <<'PY'
-          p = 'ewald_scan.cpp'
-          s = open(p).read()
-          replacements = [
-              ('constexpr int D = 8;\nconstexpr int NPTS = 6561;',
-               'constexpr int D = 9;\nconstexpr int NPTS = 19683;'),
-              ('std::array<uint8_t, D> piv{};', 'std::array<uint16_t, D> piv{};'),
-              ('uint8_t x = 0;', 'uint16_t x = 0;'),
-              ('static_cast<uint8_t>(1U << j)', 'static_cast<uint16_t>(1U << j)'),
-              ('<< "  \\"dimension\\": 8,\\n"', '<< "  \\"dimension\\": 9,\\n"'),
-          ]
-          for old, new in replacements:
-              assert old in s, old
-              s = s.replace(old, new)
-          open('ewald_scan9.cpp', 'w').write(s)
-          PY
-          g++ -std=c++20 -O3 -march=native -Wall -Wextra -pedantic ewald_scan9.cpp -o ewald_scan9
-      - name: Locate and download classification shard
-        env:
-          FACETS: ${{ matrix.facets }}
-        run: |
-          python3 - <<'PY' > data_url.txt
-          import html.parser, os, urllib.parse, urllib.request
-          page_url = 'https://polymake.org/polytopes/paffenholz/www/fano.html'
-          target = f"fv-09-{int(os.environ['FACETS']):02d}p.gz"
-          class Links(html.parser.HTMLParser):
-              def __init__(self):
-                  super().__init__(); self.hrefs = []
-              def handle_starttag(self, tag, attrs):
-                  if tag.lower() == 'a':
-                      h = dict(attrs).get('href')
-                      if h: self.hrefs.append(h)
-          with urllib.request.urlopen(page_url, timeout=60) as r:
-              page = r.read().decode('utf-8', errors='replace')
-          parser = Links(); parser.feed(page)
-          matches = [urllib.parse.urljoin(page_url, h) for h in parser.hrefs if target in h]
-          assert len(matches) == 1, (target, matches)
-          print(matches[0])
-          PY
-          cat data_url.txt
-          curl --fail --location --retry 3 --connect-timeout 30 -o shard.gz "$(cat data_url.txt)"
-          ls -lh shard.gz
-          sha256sum shard.gz > "classification-${{ matrix.facets }}.sha256"
-      - name: Scan shard exactly
-        run: |
-          set -o pipefail
-          gzip -dc shard.gz | ./ewald_scan9 -1 20 2> >(tee "scan-${{ matrix.facets }}.log" >&2)
-          mv ewald_scan_summary.json "summary-${{ matrix.facets }}.json"
-          mv ewald_candidates.txt "candidates-${{ matrix.facets }}.txt"
-          cat "summary-${{ matrix.facets }}.json"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ewald-d9-${{ matrix.facets }}
-          path: |
-            classification-${{ matrix.facets }}.sha256
-            summary-${{ matrix.facets }}.json
-            scan-${{ matrix.facets }}.log
-            candidates-${{ matrix.facets }}.txt
-
-  aggregate:
-    needs: scan
-    if: always()
+  extract:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: ewald-d9-*
-          path: all
-      - name: Aggregate and validate record count
+      - uses: actions/checkout@v4
+      - name: Download 13-facet dimension-9 shard
+        run: |
+          curl --fail --location --retry 3 --connect-timeout 30 \
+            -o shard.gz \
+            http://polymake.org/polytopes/paffenholz/data/smooth-fano/d9/fv-09-13p.gz
+          sha256sum shard.gz > classification-13.sha256
+      - name: Extract and independently recount E-points
         run: |
           python3 - <<'PY'
-          import glob, json, os
-          paths = sorted(glob.glob('all/**/summary-*.json', recursive=True))
-          assert len(paths) == 17, paths
-          rows = []
-          for p in paths:
-              with open(p) as f: s = json.load(f)
-              shard = int(os.path.basename(p).split('-')[1].split('.')[0])
-              s['shard_facets'] = shard
-              rows.append(s)
-          summed = ['total', 'identity_basis', 'nonidentity', 'heuristic_basis', 'unresolved',
-                    'rank_deficient_mod_2', 'rank_deficient_mod_3', 'rank_deficient_mod_5']
-          out = {'dimension': 9, 'shards': len(rows)}
-          for k in summed: out[k] = sum(r[k] for r in rows)
-          best = min(rows, key=lambda r: r['minimum_E_count'])
-          out['minimum_E_count'] = best['minimum_E_count']
-          out['minimum_E_shard_facets'] = best['shard_facets']
-          out['minimum_E_local_index'] = best['minimum_E_index']
-          out['sum_seconds'] = sum(r['seconds'] for r in rows)
-          out['max_shard_seconds'] = max(r['seconds'] for r in rows)
-          assert out['total'] == 8229721, out
-          with open('dimension9-summary.json', 'w') as f: json.dump(out, f, indent=2)
-          print(json.dumps(out, indent=2))
-          with open('dimension9-candidates.txt', 'wb') as dst:
-              for p in sorted(glob.glob('all/**/candidates-*.txt', recursive=True)):
-                  with open(p, 'rb') as src: dst.write(src.read())
+          import gzip, itertools, json
+
+          target = 41977  # zero-based local record index from the full exact scan
+          records = []
+          current = None
+          with gzip.open('shard.gz', 'rt', encoding='ascii') as f:
+              for raw in f:
+                  line = raw.strip()
+                  if line == 'FACETS':
+                      assert current is None
+                      current = []
+                  elif not line:
+                      if current:
+                          records.append(current)
+                          if len(records) - 1 == target:
+                              break
+                          current = None
+                  elif current is not None:
+                      current.append(tuple(map(int, line.split())))
+          assert len(records) - 1 == target, (len(records), target)
+          rows = records[-1]
+          assert len(rows) == 13
+          assert all(len(r) == 10 and r[0] == 1 for r in rows)
+          a = [r[1:] for r in rows]
+          e = []
+          for x in itertools.product((-1, 0, 1), repeat=9):
+              if all(abs(sum(ui * xi for ui, xi in zip(u, x))) <= 1 for u in a):
+                  e.append(x)
+          assert len(e) == 1033, len(e)
+          out = {
+              'dimension': 9,
+              'shard_facets': 13,
+              'local_index_zero_based': target,
+              'data_convention': '1 + a*x >= 0',
+              'facet_rows': rows,
+              'leq_normals_u_equals_minus_a': [tuple(-z for z in u) for u in a],
+              'E_count': len(e),
+              'E_points': e,
+          }
+          with open('d9-min-record.json', 'w') as f:
+              json.dump(out, f, indent=2)
+          with open('d9-min-record.facets', 'w') as f:
+              f.write('FACETS\n')
+              for r in rows:
+                  f.write(' '.join(map(str, r)) + '\n')
+          print(json.dumps({k: out[k] for k in ('dimension','shard_facets','local_index_zero_based','E_count')}, indent=2))
+          print('LEQ_NORMALS')
+          for u in out['leq_normals_u_equals_minus_a']:
+              print(*u)
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ewald-dimension-9-aggregate
+          name: d9-minimum-E-record
           path: |
-            dimension9-summary.json
-            dimension9-candidates.txt
+            classification-13.sha256
+            d9-min-record.json
+            d9-min-record.facets
