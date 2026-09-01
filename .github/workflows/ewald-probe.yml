@@ -12,23 +12,21 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect exact polymake file format
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install numerical dependencies
+        run: python -m pip install numpy scipy
+      - name: Benchmark exact scan on 1000 dimension-8 polytopes
         shell: bash
         run: |
           set -euo pipefail
           url='http://polymake.org/polytopes/paffenholz/data/smooth-fano/d8/fano-v8d-0.tgz'
           curl -L --fail --retry 4 --retry-delay 2 "$url" -o /tmp/fano-v8d-0.tgz
-          echo 'ARCHIVE'
-          ls -lh /tmp/fano-v8d-0.tgz
-          sha256sum /tmp/fano-v8d-0.tgz
-          echo 'FILES'
-          tar tzf /tmp/fano-v8d-0.tgz | wc -l
-          echo 'FILE_000000'
-          tar xOzf /tmp/fano-v8d-0.tgz fano.pnew.8D.000000.poly
-          echo 'FILE_000001'
-          tar xOzf /tmp/fano-v8d-0.tgz fano.pnew.8D.000001.poly
-          echo 'FILE_005983_HEAD'
-          tar xOzf /tmp/fano-v8d-0.tgz fano.pnew.8D.005983.poly | sed -n '1,260p'
+          /usr/bin/time -v python ewald_scan.py /tmp/fano-v8d-0.tgz --limit 1000 --output /tmp/result.json
+          echo 'RESULT_SIZE'
+          wc -c /tmp/result.json
