@@ -12,18 +12,26 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve corpus archive URLs
+      - name: Download and inspect one dimension-8 shard
         shell: bash
         run: |
           set -euo pipefail
-          page='https://polymake.org/polytopes/paffenholz/www/fano.html'
-          curl -L --fail --retry 4 --retry-delay 2 "$page" -o /tmp/fano.html
-          echo 'PAGE_HEADERS_AND_SIZE'
-          wc -c /tmp/fano.html
-          echo 'DIM8_LINKS'
-          grep -Eo 'href="[^"]*fano-v8d-[0-9]+\.(tgz|tar\.gz)"' /tmp/fano.html | sed -n '1,100p'
-          echo 'CONTEXT'
-          grep -n -C 2 'fano-v8d-0' /tmp/fano.html | sed -n '1,40p'
+          url='http://polymake.org/polytopes/paffenholz/data/smooth-fano/d8/fano-v8d-0.tgz'
+          curl -L --fail --retry 4 --retry-delay 2 "$url" -o /tmp/fano-v8d-0.tgz
+          echo 'ARCHIVE'
+          ls -lh /tmp/fano-v8d-0.tgz
+          sha256sum /tmp/fano-v8d-0.tgz
+          echo 'MEMBERS_HEAD'
+          tar tzf /tmp/fano-v8d-0.tgz | sed -n '1,80p'
+          mkdir -p /tmp/fano
+          tar xzf /tmp/fano-v8d-0.tgz -C /tmp/fano
+          echo 'FILES'
+          find /tmp/fano -type f | wc -l
+          find /tmp/fano -type f -printf '%s %p\n' | sort -n | sed -n '1,10p;$p'
+          first="$(find /tmp/fano -type f | sort | head -n 1)"
+          echo "FIRST_FILE=$first"
+          echo 'FIRST_FILE_HEAD'
+          sed -n '1,320p' "$first"
