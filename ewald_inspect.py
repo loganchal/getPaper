@@ -30,24 +30,29 @@ def main() -> None:
     parser.feed(page)
     matches = [urllib.parse.urljoin(PAGE, h) for h in parser.hrefs if TARGET in h]
     if not matches:
-        raise RuntimeError(f"No {TARGET!r} link found; links={parser.hrefs[-20:]}")
+        raise RuntimeError(f"No {TARGET!r} link found")
     url = matches[0]
     print("DATA_URL", url, flush=True)
 
     polytopes: list[list[list[int]]] = []
-    current: list[list[int]] = []
+    current: list[list[int]] | None = None
     with urllib.request.urlopen(url, timeout=120) as raw, gzip.GzipFile(fileobj=raw) as gz:
         for raw_line in gz:
             line = raw_line.decode("ascii").strip()
-            if line:
-                current.append([int(x) for x in line.split()])
-            elif current:
-                polytopes.append(current)
+            if line == "FACETS":
+                if current:
+                    raise RuntimeError("New FACETS header before blank separator")
                 current = []
-                if len(polytopes) == 5:
-                    break
-    if current and len(polytopes) < 5:
-        polytopes.append(current)
+            elif not line:
+                if current is not None and current:
+                    polytopes.append(current)
+                    current = None
+                    if len(polytopes) == 5:
+                        break
+            elif current is not None:
+                current.append([int(x) for x in line.split()])
+            else:
+                raise RuntimeError(f"Unexpected line outside record: {line!r}")
 
     print("POLYTOPES_READ", len(polytopes))
     for i, rows in enumerate(polytopes):
@@ -56,9 +61,9 @@ def main() -> None:
         normals = [r[1:] for r in rows]
         d = len(normals[0])
         minus_units = sum(v == [-int(j == k) for j in range(d)] for k in range(d) for v in normals)
-        # The nested count above counts each actual -e_k once.
-        print(f"POLY {i}: facets={len(rows)} widths={widths} constants={constants} dim={d} minus_units={minus_units}")
-        for row in rows[:min(12, len(rows))]:
+        max_abs = max(abs(x) for v in normals for x in v)
+        print(f"POLY {i}: facets={len(rows)} widths={widths} constants={constants} dim={d} minus_units={minus_units} max_abs={max_abs}")
+        for row in rows[:min(14, len(rows))]:
             print(" ", " ".join(map(str, row)))
 
 
