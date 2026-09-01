@@ -1,4 +1,4 @@
-name: Ewald data probe
+name: Ewald classification scan
 
 on:
   push:
@@ -9,10 +9,26 @@ permissions:
   contents: read
 
 jobs:
-  inspect:
+  scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Probe public classification stream
-        run: python3 ewald_inspect.py
+      - name: Compile exact scanner
+        run: g++ -std=c++20 -O3 -march=native -Wall -Wextra -pedantic ewald_scan.cpp -o ewald_scan
+      - name: Download dimension-8 classification
+        run: |
+          curl --fail --location --retry 3 --connect-timeout 30 \
+            -o smooth_fano_8d.gz \
+            http://polymake.org/polytopes/paffenholz/data/smooth-fano/d8/smooth_fano_8d.gz
+          ls -lh smooth_fano_8d.gz
+      - name: Benchmark first 10000 records
+        run: gzip -dc smooth_fano_8d.gz | ./ewald_scan 10000 20
+      - name: Show exact summary
+        run: cat ewald_scan_summary.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ewald-scan-benchmark
+          path: |
+            ewald_scan_summary.json
+            ewald_candidates.txt
