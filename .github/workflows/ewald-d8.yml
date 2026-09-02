@@ -1,0 +1,34 @@
+name: Ewald dimension-8 search
+
+on:
+  push:
+    branches: [ewald-d8-search]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch classification
+        run: |
+          curl -L --fail --retry 4 --retry-delay 5 \
+            -o smooth_fano_8d.gz \
+            https://polymake.org/polytopes/paffenholz/www/smooth_fano_8d.gz
+          ls -lh smooth_fano_8d.gz
+      - name: Probe archive
+        run: python ewald_search/probe.py
+      - name: Upload probe and archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: smooth-fano-8d-probe
+          path: |
+            probe.json
+            probe_head.txt
+            smooth_fano_8d.gz
+          retention-days: 1
+          compression-level: 0
