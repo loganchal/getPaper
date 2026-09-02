@@ -3,6 +3,8 @@ name: Ewald dimension-8 search
 on:
   push:
     branches: [ewald-d8-search]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
