@@ -10,47 +10,32 @@ permissions:
   contents: read
 
 jobs:
-  inspect-dimension-nine:
+  fetch-dimension-nine:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect dimension-9 source files
+      - name: Download complete dimension-9 classification
         shell: bash
         run: |
           set -euxo pipefail
-          PAGE=https://polymake.org/polytopes/paffenholz/www/fano.html
-          curl -L --fail --retry 3 -A 'Mozilla/5.0' "$PAGE" -o fano.html
-          grep -oE 'href="[^"]*fv-09-[0-9]+p\.gz"' fano.html | sed -E 's/^href="//;s/"$//' > hrefs.txt
-          python - <<'PY'
-          from urllib.parse import urljoin
-          base='https://polymake.org/polytopes/paffenholz/www/fano.html'
-          for line in open('hrefs.txt'):
-              print(urljoin(base,line.strip()))
-          PY
-          python - <<'PY' > urls.txt
-          from urllib.parse import urljoin
-          base='https://polymake.org/polytopes/paffenholz/www/fano.html'
-          for line in open('hrefs.txt'):
-              print(urljoin(base,line.strip()))
-          PY
-          : > heads.txt
-          while read -r u; do
-            echo "===== $u =====" | tee -a heads.txt
-            curl -L --fail --retry 3 -sSI "$u" | grep -Ei '^(HTTP/|content-length:|last-modified:|etag:)' | tee -a heads.txt
-          done < urls.txt
-          first=$(head -1 urls.txt)
-          curl -L --fail --retry 3 "$first" -o sample.gz
-          gzip -dc sample.gz | head -80 > sample.txt || true
-          ls -lh sample.gz >> heads.txt
+          mkdir smoothfano9
+          base=https://polymake.org/polytopes/paffenholz/data/smooth-fano/d9
+          for n in $(seq 10 26); do
+            f=fv-09-${n}p.gz
+            curl -L --fail --retry 3 "$base/$f" -o "smoothfano9/$f"
+          done
+          sha256sum smoothfano9/*.gz > smoothfano9/SHA256SUMS
+          : > smoothfano9/COUNTS
+          for f in smoothfano9/*.gz; do
+            printf '%s ' "$(basename "$f")" >> smoothfano9/COUNTS
+            gzip -cd "$f" | grep -c '^FACETS$' >> smoothfano9/COUNTS
+          done
+          cat smoothfano9/COUNTS
+          awk '{s+=$2} END {print "TOTAL",s}' smoothfano9/COUNTS
+          du -ch smoothfano9/*.gz | tail -1
       - uses: actions/upload-artifact@v4
         with:
-          name: smoothfano9-inspection
-          path: |
-            fano.html
-            hrefs.txt
-            urls.txt
-            heads.txt
-            sample.gz
-            sample.txt
+          name: smoothfano9-complete
+          path: smoothfano9
           compression-level: 0
           retention-days: 1
