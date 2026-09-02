@@ -1,0 +1,34 @@
+name: Ewald data bridge
+
+on:
+  push:
+    branches:
+      - ewald-search-temp
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-classification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch official dimension-7 smooth Fano classification
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 --retry-all-errors \
+            --output smoothfano7.tar.gz \
+            https://magma.maths.usyd.edu.au/magma/download/db/smoothfano7.tar.gz
+          echo '85729f6bf58f263d19a2cc1a104619b2  smoothfano7.tar.gz' | md5sum --check --strict
+          tar -tzf smoothfano7.tar.gz > archive-members.txt
+          ls -lh smoothfano7.tar.gz
+          cat archive-members.txt
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoothfano7-official
+          path: |
+            smoothfano7.tar.gz
+            archive-members.txt
+          if-no-files-found: error
+          retention-days: 1
