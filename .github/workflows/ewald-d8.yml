@@ -1,0 +1,13 @@
+name: Ewald dimension-8 archive probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  archived:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Dimension-8 probe retained for reproducibility; automated triggers disabled."
