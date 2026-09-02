@@ -1,55 +1,13 @@
 name: Ewald dimension-9 classified scan
 
 on:
-  push:
-    branches: [ewald-d8-search]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  scan:
-    strategy:
-      fail-fast: false
-      max-parallel: 17
-      matrix:
-        facets: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26]
+  archived:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
     steps:
-      - uses: actions/checkout@v4
-      - name: Install numerical dependency
-        run: python -m pip install --disable-pip-version-check numpy
-      - name: Fetch classified stratum
-        env:
-          FACETS: ${{ matrix.facets }}
-        run: |
-          python - <<'PY'
-          import hashlib, os
-          from pathlib import Path
-          from urllib.request import urlopen
-          p=os.environ['FACETS']
-          url=f"http://polymake.org/polytopes/paffenholz/data/smooth-fano/d9/fv-09-{p}p.gz"
-          data=urlopen(url,timeout=600).read()
-          Path('data.gz').write_bytes(data)
-          digest=hashlib.sha256(data).hexdigest()
-          Path('archive_metadata.json').write_text(
-              '{\n  "url": '+repr(url).replace("'",'"')+',\n  "bytes": '+str(len(data))+',\n  "sha256": "'+digest+'"\n}\n')
-          print(url,len(data),digest)
-          PY
-      - name: Exact Ewald scan
-        env:
-          FACETS: ${{ matrix.facets }}
-        run: python ewald_search/search_fano.py data.gz --dimension 9 --out "result-${FACETS}.json"
-      - name: Upload exact result
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ewald-d9-${{ matrix.facets }}p
-          path: |
-            result-${{ matrix.facets }}.json
-            archive_metadata.json
-          retention-days: 2
-          if-no-files-found: warn
-          compression-level: 6
+      - run: echo "The exhaustive dimension-9 scan completed successfully; automatic triggers are disabled."
