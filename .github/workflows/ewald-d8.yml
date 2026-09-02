@@ -11,50 +11,88 @@ permissions:
   contents: read
 
 jobs:
-  probe:
+  facet-probe:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch classification
+      - name: Fetch facet classification
         run: |
           python - <<'PY'
           from html.parser import HTMLParser
           from pathlib import Path
           from urllib.parse import urljoin
           from urllib.request import urlopen
-
           page = "https://polymake.org/polytopes/paffenholz/www/fano.html"
           html = urlopen(page, timeout=60).read().decode("utf-8")
-          Path("fano.html").write_text(html, encoding="utf-8")
-
           class Links(HTMLParser):
-              def __init__(self):
-                  super().__init__(); self.links=[]
+              def __init__(self): super().__init__(); self.links=[]
               def handle_starttag(self, tag, attrs):
                   if tag == "a":
                       href = dict(attrs).get("href")
                       if href: self.links.append(href)
-
           p = Links(); p.feed(html)
           matches = [urljoin(page, h) for h in p.links if "smooth_fano_8d.gz" in h]
-          print("archive links:", matches)
-          if len(matches) != 1:
-              raise SystemExit(f"expected one archive link, found {len(matches)}")
+          if len(matches) != 1: raise SystemExit(matches)
           data = urlopen(matches[0], timeout=300).read()
           Path("smooth_fano_8d.gz").write_bytes(data)
           print("downloaded", len(data), "bytes from", matches[0])
           PY
-          ls -lh smooth_fano_8d.gz
-      - name: Probe archive
+      - name: Probe facet archive
         run: python ewald_search/probe.py
-      - name: Upload probe and archive
+      - name: Upload facet probe
         uses: actions/upload-artifact@v4
         with:
           name: smooth-fano-8d-probe
           path: |
             probe.json
             probe_head.txt
-            smooth_fano_8d.gz
+          retention-days: 1
+
+  vertex-tarball-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve and fetch first vertex tarball
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          from urllib.parse import urljoin
+          from urllib.request import urlopen
+          page = "https://polymake.org/polytopes/paffenholz/www/fano.html"
+          html = urlopen(page, timeout=60).read().decode("utf-8")
+          class Links(HTMLParser):
+              def __init__(self): super().__init__(); self.links=[]
+              def handle_starttag(self, tag, attrs):
+                  if tag == "a":
+                      href = dict(attrs).get("href")
+                      if href: self.links.append(href)
+          p = Links(); p.feed(html)
+          matches = [urljoin(page, h) for h in p.links if h.endswith("fano-v8d-0.tgz")]
+          if len(matches) != 1: raise SystemExit(matches)
+          data = urlopen(matches[0], timeout=300).read()
+          Path("fano-v8d-0.tgz").write_bytes(data)
+          print("downloaded", len(data), "bytes from", matches[0])
+          PY
+          tar tzf fano-v8d-0.tgz | head -100 > tar_listing.txt
+          mkdir extracted
+          tar xzf fano-v8d-0.tgz -C extracted
+          first=$(find extracted -type f | sort | head -1)
+          echo "$first" > first_path.txt
+          sed -n '1,240p' "$first" > first_file.txt
+          cat tar_listing.txt
+          echo '--- first file ---'
+          cat first_file.txt
+      - name: Upload tarball probe
+        uses: actions/upload-artifact@v4
+        with:
+          name: fano-v8d-0-probe
+          path: |
+            tar_listing.txt
+            first_path.txt
+            first_file.txt
+            fano-v8d-0.tgz
           retention-days: 1
           compression-level: 0
