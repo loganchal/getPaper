@@ -1,0 +1,45 @@
+name: Ewald classification fetch
+
+on:
+  push:
+    branches:
+      - ewald-search-scratch-20260902
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ARCHIVE_URL: https://magma.maths.usyd.edu.au/magma/download/db/smoothfano8.tar.gz
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and inspect classification archive
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -L --fail --retry 3 "$ARCHIVE_URL" -o smoothfano8.tar.gz
+          echo 'c6f793461f67efcf62c1f6af83033eaa  smoothfano8.tar.gz' | md5sum -c -
+          tar -tzf smoothfano8.tar.gz > archive_listing.txt
+          mkdir extracted
+          tar -xzf smoothfano8.tar.gz -C extracted
+          find extracted -maxdepth 3 -type f -printf '%p %s bytes\n' | sort > extracted_files.txt
+          head -100 archive_listing.txt > archive_listing_head.txt
+          find extracted -maxdepth 3 -type f | sort | head -20 | while read f; do
+            echo "===== $f =====" >> sample_contents.txt
+            head -80 "$f" >> sample_contents.txt || true
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smoothfano8-source
+          path: |
+            smoothfano8.tar.gz
+            archive_listing.txt
+            archive_listing_head.txt
+            extracted_files.txt
+            sample_contents.txt
+          compression-level: 0
+          retention-days: 1
